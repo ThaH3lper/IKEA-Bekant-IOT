@@ -2,74 +2,43 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
-
-//0x0A, 0x2B, 0x49, 0x50, 0x44, 0x2C, 0x30, 0x2C, 0x34, 0x3A, 
-byte relON1[] = {0xA0, 0x01, 0x01, 0xA2};  //Hex command to send to serial for open relay
-byte relOFF1[] = {0xA0, 0x01, 0x00, 0xA1}; //Hex command to send to serial for close relay
-byte relON2[] = {0xA0, 0x02, 0x01, 0xA3};  //Hex command to send to serial for open relay
-byte relOFF2[] = {0xA0, 0x02, 0x00, 0xA2}; //Hex command to send to serial for close relay
+#include "lctech/relay.h"
 
 int ledState = false;
 unsigned long previousMillis = 0;
-const long interval = 2000; //  2 seconds
 ESP8266WebServer server(80);
 
-//0 = idle
-//1 = up
-//2 = down
-
+// 0 = idle, 1 = up, 2 = down
 unsigned int state = 0;
 unsigned long moveMillisLeft = 0;
 
-const char MAIN_page[] PROGMEM = R"=====(
-<!DOCTYPE html>
-<html>
-<body>
-<center>
-<h1>WiFi LED on off demo: 1</h1><br>
-Ciclk to turn <a href="ledOn">UP</a><br>
-Ciclk to turn <a href="ledOff">DOWN</a><br>
-</center>
- 
-</body>
-</html>
-)=====";
-
-const char* ssid = "YOUR SSID HERE";
-const char* password = "YOUR WIFI PW HERE";
+const char* ssid = "";
+const char* password = "";
  
 void handleRoot() {
- Serial.println("You called root page");
- String s = MAIN_page; //Read HTML contents
- server.send(200, "text/html", s); //Send web page
+  server.send(200, "text/html", "Root view");
 }
  
-void handleLEDon() {
+void handleUp() {
   moveMillisLeft = millis() + server.arg("time").toInt();
   state = 1;
-  Serial.write(relON1, sizeof(relON1));
-  Serial.flush();
-  delay(100);
-  server.send(200, "text/html", "LED is ON"); //Send ADC value only to client ajax request
+  enableRelay(RELAY_ONE);
+  server.send(200, "text/html", "Enable relay one");
 }
  
-void handleLEDoff() {
+void handleDown() {
   moveMillisLeft = millis() + server.arg("time").toInt();
   state = 2;
-  Serial.write(relON2, sizeof(relON2));
-  Serial.flush();
-  delay(100);
- server.send(200, "text/html", "LED is OFF"); //Send ADC value only to client ajax request
+  enableRelay(RELAY_TWO);
+  server.send(200, "text/html", "Enable relay two");
 }
-//==============================================================
-//                  SETUP
-//==============================================================
+
 void setup(void){
   Serial.begin(115200);
   
-  WiFi.begin(ssid, password);     //Connect to your WiFi router
+  WiFi.begin(ssid, password);
   
-  // Wait for connection
+  //Todo move this to loop, if disconnected, it won't reconnect
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -79,13 +48,13 @@ void setup(void){
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());  //IP address assigned to your ESP
+  Serial.println(WiFi.localIP());
  
-  server.on("/", handleRoot);      //Which routine to handle at root location. This is display page
-  server.on("/upp", handleLEDon); //as Per  <a href="ledOn">, Subroutine to be called
-  server.on("/ner", handleLEDoff);
+  server.on("/", handleRoot);
+  server.on("/upp", handleUp);
+  server.on("/ner", handleDown);
  
-  server.begin();                  //Start server
+  server.begin();
   Serial.println("HTTP server started");
 }
 
@@ -95,13 +64,9 @@ void loop()
   unsigned long currentMillis = millis();
   if(currentMillis > moveMillisLeft && state != 0) {
     if (state == 1) {
-      Serial.write(relOFF1, sizeof(relOFF1));
-      Serial.flush();
-      delay(100);
+      disableRelay(RELAY_ONE);
     } else if (state == 2) {
-      Serial.write(relOFF2, sizeof(relOFF2));
-      Serial.flush();
-      delay(100);
+      disableRelay(RELAY_TWO);
     }
     state = 0;
   }
