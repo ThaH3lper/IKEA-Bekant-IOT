@@ -43,7 +43,6 @@ void setup(void){
   Serial.begin(115200);
   WiFi.begin(ssid, password);
   
-  //Todo move this to loop, if disconnected, it won't reconnect
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
